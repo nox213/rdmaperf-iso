@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+#include <rdmaperf-iso/resource_table.h>
+#include <rdmaperf-iso/qp_cache.h>
+#include <rdmaperf-iso/tokenbucket.h>
+
 int monitor(void);
 void init_resource(void);
 
@@ -20,5 +24,6 @@ struct config {
 
 int init_task_info(struct task_info *t_info, uint64_t total_bandwidth, uint64_t total_qps);
 void parse_options(int argc, char *argv[]);
+int drop_entry(int task_id);
 
 #endif

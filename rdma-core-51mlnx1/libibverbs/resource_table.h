@@ -4,6 +4,7 @@
 
 #include <stdlib.h>
 #include <errno.h>
+#include <string.h>
 
 #include "tokenbucket.h"
 #include "qp_cache.h"
@@ -34,13 +35,12 @@ struct resource {
 	struct history_table ht;
 };
 
-
-
 static inline int init_history_table(struct history_table *ht, uint32_t capacity)
 {
 	ht->head = ht->tail = 0;
 	ht->capacity = capacity;
-	ht->access_history = calloc(capacity, sizeof(uint32_t));
+	ht->access_history = malloc(capacity * sizeof(uint32_t));
+	memset(ht->access_history, -1, capacity * sizeof(uint32_t));
 	if (!ht->access_history)
 		return -ENOMEM;
 

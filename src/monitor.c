@@ -1,17 +1,15 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
 #include <string.h>
 #include <syslog.h>
 #include <fcntl.h>
+#include <unistd.h>
 #include <sys/resource.h>
 #include <sys/mman.h>
 
 #include "misc.h"
 #include "monitor.h"
-
-#include <rdmaperf-iso/resource_table.h>
-#include <rdmaperf-iso/qp_cache.h>
-#include <rdmaperf-iso/tokenbucket.h>
 
 #define TABLE_SIZE 100
 
@@ -29,6 +27,7 @@ int main(int argc, char *argv[])
 	int shm_fd;
 
 	parse_options(argc, argv);
+	srand(time(NULL));
 
 	config_fp = fopen(option.config_path, "r");
 	if (!config_fp)
@@ -122,8 +121,22 @@ void init_resource(void)
 
 int monitor(void)
 {
+	int i;
 
-	/* monitoring */
+	while (true) {
+		usleep(200);
+		for (i = 0; i < t_info.nr_task; i++)
+			drop_entry(i);
+	}
+
+	return 0;
+}
+
+int drop_entry(int task_id)
+{
+	int i = rand() % r_table[task_id].ht.capacity;
+	cache_delete(&(r_table[task_id].cache), i);
+
 	return 0;
 }
 
