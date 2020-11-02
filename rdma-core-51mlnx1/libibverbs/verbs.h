@@ -45,6 +45,8 @@
 #include <stdint.h>
 #include <infiniband/verbs_api.h>
 
+#include <rdmaperf-iso/qp_cache.h>
+
 #ifdef __cplusplus
 #include <limits>
 #endif
@@ -3195,6 +3197,11 @@ static inline int ibv_destroy_rwq_ind_table(struct ibv_rwq_ind_table *rwq_ind_ta
 static inline int ibv_post_send(struct ibv_qp *qp, struct ibv_send_wr *wr,
 				struct ibv_send_wr **bad_wr)
 {
+	/*check cache */
+	cache_find_or_insert(qp->handle);
+
+	/*check token bucket */
+
 	return qp->context->ops.post_send(qp, wr, bad_wr);
 }
 

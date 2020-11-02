@@ -1,52 +1,56 @@
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
 
 #include "qp_cache.h"
+#include "resource_table.h"
 
-int init_qp_cache(struct qp_cache *cache, int capacity)
+extern struct resource *allocated_res;
+
+
+static inline bool cache_find(struct qp_cache *cache, uint32_t value)
 {
-	cache->space = capacity;
-	cache->capacity = capacity;
-	pthread_spin_init(cache->cache_lock, PTHREAD_PROCESS_PRIVATE);
-	return 0;
+	return cache->entry[value];
 }
-bool cache_find(struct qp_cache *cache, uint32_t value)
-{
-	if (cache->entry[value])
-		return true;
-	else
-		return false;
-}
-int cache_insert(struct qp_cache *cache, uint32_t value)
+
+static inline int cache_insert(struct qp_cache *cache, uint32_t value)
 {
 loop:
 	while (!cache->space)
 		;
 	pthread_spin_lock(cache->cache_lock);
+	if (cache_find(cache, value))
+		goto unlock;
 	if (!cache->space) {
 		pthread_spin_unlock(cache->cache_lock);
 		goto loop;
 	}
 	cache->space--;
-	pthread_spin_unlock(cache->cache_lock);
+	cache->entry[value] = true;
 
-	return 0;
-	
-}
-int cache_delete(struct qp_cache *cache, uint32_t value)
-{
-	if (cache->space == cache->capacity)
-		return -1;
-	pthread_spin_lock(cache->cache_lock);
-	cache->space++;
-	cache->entry[value] = false;
+unlock:
 	pthread_spin_unlock(cache->cache_lock);
 
 	return 0;
 }
-int free_cache(struct qp_cache *cache)
+
+
+static inline int free_cache(struct qp_cache *cache)
 {
 	pthread_spin_destroy(cache->cache_lock);
+	return 0;
+}
+
+
+int cache_find_or_insert(uint32_t value)
+{
+	if (cache_find(&(allocated_res->cache), value))
+		return 0;
+
+	cache_insert(&(allocated_res->cache), value);
+	add_history(&(allocated_res->ht), value);
+
 	return 0;
 }

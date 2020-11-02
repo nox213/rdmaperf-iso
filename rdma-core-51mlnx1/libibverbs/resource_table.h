@@ -16,6 +16,7 @@ enum task_type {
 	NONE,
 };
 
+
 struct history_table {
 	uint32_t *access_history;
 	uint32_t capacity;
@@ -24,6 +25,8 @@ struct history_table {
 };
 
 struct resource {
+	uint64_t allocated_bandwidth;
+	uint64_t allocated_qps;
 	char task_name[40];
 	enum task_type type;
 	struct qp_cache cache;
@@ -31,8 +34,11 @@ struct resource {
 	struct history_table ht;
 };
 
+
+
 static inline int init_history_table(struct history_table *ht, uint32_t capacity)
 {
+	ht->head = ht->tail = 0;
 	ht->capacity = capacity;
 	ht->access_history = calloc(capacity, sizeof(uint32_t));
 	if (!ht->access_history)
@@ -45,6 +51,18 @@ static inline int free_history_table(struct history_table *ht, uint32_t capacity
 {
 	free(ht->access_history);
 	return 0;
+}
+
+static inline void add_history(struct history_table *ht, uint32_t handle)
+{
+	int i = __atomic_fetch_add(&(ht->tail), 1, __ATOMIC_ACQUIRE);
+	i %= ht->capacity;
+	ht->access_history[i] = handle;
+}
+
+static inline void consume_history(struct history_table *ht)
+{
+	;
 }
 
 #endif

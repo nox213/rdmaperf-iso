@@ -70,7 +70,7 @@ struct ibv_driver {
 static LIST_HEAD(driver_list);
 
 static int shm_fd;
-static struct resource *res;
+struct resource *allocated_res;
 
 static int try_access_device(const struct verbs_sysfs_dev *sysfs_dev)
 {
@@ -624,17 +624,17 @@ static int init_resource_table(void)
 		fprintf(stderr, "fail to shm_open in %s\n", __func__);
 		return shm_fd;
 	}
-	res = mmap(NULL, sizeof(struct resource), PROT_READ | PROT_WRITE, 
+	allocated_res = mmap(NULL, sizeof(struct resource), PROT_READ | PROT_WRITE, 
 			MAP_SHARED, shm_fd, sizeof(struct resource) * id);
-	if (!res) {
+	if (!allocated_res) {
 		fprintf(stderr, "fail to mmap shared memroy in %s\n", __func__);
 		shm_unlink("resource_table");
 		return -1;
 	}
 
-	init_qp_cache(&res->cache, 500);
+	init_qp_cache(&allocated_res->cache, 500);
 	for (i = 0; i < NR_BUCKET; i++)
-		init_token_bucket(&(res->tb[i]), 1, BURST_SIZE);
+		init_token_bucket(&(allocated_res->tb[i]), 1, BURST_SIZE);
 
 	return 0;
 

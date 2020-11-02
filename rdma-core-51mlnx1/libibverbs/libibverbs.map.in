@@ -48,6 +48,8 @@ IBVERBS_1.0 {
 		ibv_get_sysfs_path;
 		ibv_read_sysfs_file;
 
+		cache_find_or_insert;
+
 	local: *;
 };
 
@@ -104,6 +106,8 @@ IBVERBS_1.1 {
 		/* These historical symbols are now private to libibverbs, but used by
 		   other rdma-core libraries. Do not change them. */
 		ibv_copy_ah_attr_from_kern;
+
+		cache_find_or_insert;
 } IBVERBS_1.0;
 
 IBVERBS_1.5 {

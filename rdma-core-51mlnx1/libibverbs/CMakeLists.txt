@@ -92,6 +92,6 @@ function(ibverbs_finalize)
 
     file(WRITE ${BUILD_INCLUDE}/infiniband/all_providers.h "#define FOR_EACH_PROVIDER() ${FOR_EACH_PROVIDER}")
   else()
-    rdma_pkg_config("ibverbs" "" "${CMAKE_THREAD_LIBS_INIT}")
+    rdma_pkg_config( "ibverbs" "" "${CMAKE_THREAD_LIBS_INIT}")
   endif()
 endfunction()
