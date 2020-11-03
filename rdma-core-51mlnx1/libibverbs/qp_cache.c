@@ -7,7 +7,7 @@
 #include "qp_cache.h"
 #include "resource_table.h"
 
-extern struct resource *allocated_res;
+extern struct resource *my_res;
 
 
 static inline bool cache_find(struct qp_cache *cache, uint32_t value)
@@ -17,21 +17,22 @@ static inline bool cache_find(struct qp_cache *cache, uint32_t value)
 
 static inline int cache_insert(struct qp_cache *cache, uint32_t value)
 {
+	int space;
 loop:
-	while (!cache->space)
+	while (!(space = cache->space))
 		;
-	pthread_spin_lock(cache->cache_lock);
+	pthread_spin_lock(&cache->cache_lock);
 	if (cache_find(cache, value))
 		goto unlock;
-	if (!cache->space) {
-		pthread_spin_unlock(cache->cache_lock);
-		goto loop;
-	}
+
+	while (!(space = cache->space))
+		;
+
 	cache->space--;
 	cache->entry[value] = true;
 
 unlock:
-	pthread_spin_unlock(cache->cache_lock);
+	pthread_spin_unlock(&cache->cache_lock);
 
 	return 0;
 }
@@ -39,18 +40,18 @@ unlock:
 
 static inline int free_cache(struct qp_cache *cache)
 {
-	pthread_spin_destroy(cache->cache_lock);
+	pthread_spin_destroy(&cache->cache_lock);
 	return 0;
 }
 
 
 int cache_find_or_insert(uint32_t value)
 {
-	if (cache_find(&(allocated_res->cache), value))
+	if (cache_find(&(my_res->cache), value))
 		return 0;
 
-	cache_insert(&(allocated_res->cache), value);
-	add_history(&(allocated_res->ht), value);
+	cache_insert(&(my_res->cache), value);
+	add_history(&(my_res->ht), value);
 
 	return 0;
 }

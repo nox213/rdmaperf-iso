@@ -70,7 +70,8 @@ struct ibv_driver {
 static LIST_HEAD(driver_list);
 
 static int shm_fd;
-struct resource *allocated_res;
+static struct resource *r_table;
+struct resource *my_res;
 
 static int try_access_device(const struct verbs_sysfs_dev *sysfs_dev)
 {
@@ -614,27 +615,36 @@ static int init_resource_table(void)
 	int id;
 	char *str;
 
+	printf("init r_table\n");
+
 	str = getenv("TASK_ID");
 	if (!str)
 		return -1;
 	id = atoi(str);
+	printf("task id: %d\n", id);
 
-	shm_fd = shm_open("resource_table", O_RDWR, 0644);
+	shm_fd = shm_open("/resource_table", O_RDWR, 0644);
 	if (shm_fd < 0) {
 		fprintf(stderr, "fail to shm_open in %s\n", __func__);
 		return shm_fd;
 	}
-	allocated_res = mmap(NULL, sizeof(struct resource), PROT_READ | PROT_WRITE, 
-			MAP_SHARED, shm_fd, sizeof(struct resource) * id);
-	if (!allocated_res) {
+	r_table = mmap(NULL, sizeof(struct resource) * TABLE_SIZE, PROT_READ | PROT_WRITE, 
+			MAP_SHARED, shm_fd, 0);
+	if (!r_table) {
 		fprintf(stderr, "fail to mmap shared memroy in %s\n", __func__);
 		shm_unlink("resource_table");
 		return -1;
 	}
+	my_res = &r_table[id];
 
-	init_qp_cache(&allocated_res->cache, 500);
+	printf("init qp cache, qps: %d\n", my_res->allocated_qps);
+	init_qp_cache(&my_res->cache, my_res->allocated_qps);
+	init_history_table(&my_res->ht);
+	printf("init token bucket\n");
+	/*
 	for (i = 0; i < NR_BUCKET; i++)
-		init_token_bucket(&(allocated_res->tb[i]), 1, BURST_SIZE);
+		init_token_bucket(&(my_res->tb[i]), 1, BURST_SIZE);
+		*/
 
 	return 0;
 
@@ -645,6 +655,7 @@ int ibverbs_init(void)
 	char *env_value;
 
 	init_resource_table();
+	my_res->on = true;
 
 	if (getenv("RDMAV_FORK_SAFE") || getenv("IBV_FORK_SAFE"))
 		if (ibv_fork_init())

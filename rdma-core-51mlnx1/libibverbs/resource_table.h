@@ -5,11 +5,14 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "tokenbucket.h"
 #include "qp_cache.h"
 
 #define NR_BUCKET 30
+#define TABLE_SIZE 100
+#define HISTORY_LENGTH 100
 
 enum task_type {
 	LATENCY,
@@ -19,13 +22,14 @@ enum task_type {
 
 
 struct history_table {
-	uint32_t *access_history;
+	uint32_t access_history[HISTORY_LENGTH];
 	uint32_t capacity;
 	uint32_t head;
 	uint32_t tail;
 };
 
 struct resource {
+	bool on;
 	uint64_t allocated_bandwidth;
 	uint64_t allocated_qps;
 	char task_name[40];
@@ -35,21 +39,17 @@ struct resource {
 	struct history_table ht;
 };
 
-static inline int init_history_table(struct history_table *ht, uint32_t capacity)
+static inline int init_history_table(struct history_table *ht)
 {
 	ht->head = ht->tail = 0;
-	ht->capacity = capacity;
-	ht->access_history = malloc(capacity * sizeof(uint32_t));
-	memset(ht->access_history, -1, capacity * sizeof(uint32_t));
-	if (!ht->access_history)
-		return -ENOMEM;
+	ht->capacity = HISTORY_LENGTH;
+	memset(ht->access_history, -1, HISTORY_LENGTH * sizeof(uint32_t));
 
 	return 0;
 }
 
-static inline int free_history_table(struct history_table *ht, uint32_t capacity)
+static inline int free_history_table(struct history_table *ht)
 {
-	free(ht->access_history);
 	return 0;
 }
 

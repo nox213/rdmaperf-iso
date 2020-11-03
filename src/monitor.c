@@ -11,8 +11,6 @@
 #include "misc.h"
 #include "monitor.h"
 
-#define TABLE_SIZE 100
-
 struct config option;
 struct resource *r_table;
 struct task_info t_info;
@@ -33,7 +31,7 @@ int main(int argc, char *argv[])
 	if (!config_fp)
 		err_sys("fail to open config file");
 
-	shm_fd = shm_open("resource_table", O_RDWR | O_CREAT, 0644);
+	shm_fd = shm_open("/resource_table", O_RDWR | O_CREAT, 0644);
 	ftruncate(shm_fd, TABLE_SIZE * sizeof(struct resource));
 	r_table = mmap(NULL, TABLE_SIZE * sizeof(struct resource), PROT_READ | PROT_WRITE, 
 			MAP_SHARED, shm_fd, 0);
@@ -61,10 +59,13 @@ int main(int argc, char *argv[])
 		printf("id: %d, name: %s, type: %d\n", i, r_table[i].task_name, r_table[i].type);
 		t_info.nr_task++;
 	}
+	printf("# of tasks: %d\n", t_info.nr_task);
 
 	fclose(config_fp);
-	daemonize(argv[0]);
 	init_resource();
+	printf("init done\n");
+
+//	daemonize(argv[0]);
 	monitor();
 
 free:
@@ -113,29 +114,57 @@ void init_resource(void)
 {
 	int i;
 
+	syslog(LOG_INFO, "init resource %d", t_info.nr_task);
 	for (i = 0; i < t_info.nr_task; i++) {
 		r_table[i].allocated_bandwidth = t_info.total_bandwidth / t_info.nr_task;
 		r_table[i].allocated_qps = t_info.total_qps / t_info.nr_task;
+		r_table[i].on = false;
 	}
 }
 
 int monitor(void)
 {
 	int i;
+	int cnt = 0;
 
 	while (true) {
-		usleep(200);
-		for (i = 0; i < t_info.nr_task; i++)
-			drop_entry(i);
+		usleep(100);
+		for (i = 0; i < t_info.nr_task; i++) {
+			if (r_table[i].on) {
+		//		cache_flush(&r_table[i].cache);
+				drop_entry(i);
+			}
+		}
 	}
 
 	return 0;
 }
 
+
 int drop_entry(int task_id)
 {
-	int i = rand() % r_table[task_id].ht.capacity;
-	cache_delete(&(r_table[task_id].cache), i);
+	int i, target; 
+
+retry:
+	i = rand() % r_table[task_id].ht.capacity;
+	if ((int) r_table[task_id].ht.access_history[i] < 0)
+		goto retry;
+
+	target = r_table[task_id].ht.access_history[i];
+
+	/*
+	   target = -1;
+	   for (i = 0; i < r_table[task_id].cache.capacity; i++)
+	   if (r_table[task_id].cache.entry[i]) {
+	   target = i;
+	   break;
+	   }
+
+	   if (target < 0)
+	   return -1;
+	   */
+
+	cache_delete(&(r_table[task_id].cache), target);
 
 	return 0;
 }
