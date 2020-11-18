@@ -4,7 +4,6 @@ output
 tags
 *.csv
 *.log
-*.txt
 *.png
 *.swp
 
