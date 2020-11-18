@@ -14,6 +14,7 @@
 struct config option;
 struct resource *r_table;
 struct task_info t_info;
+int *pointer;
 
 int main(int argc, char *argv[])
 {
@@ -36,7 +37,7 @@ int main(int argc, char *argv[])
 	r_table = mmap(NULL, TABLE_SIZE * sizeof(struct resource), PROT_READ | PROT_WRITE, 
 			MAP_SHARED, shm_fd, 0);
 	if (!r_table)
-		goto free;
+		goto unlink;
 
 	init_task_info(&t_info, option.total_bandwidth, option.total_qps);
 	while (fgets(str, sizeof(str), config_fp)) {
@@ -56,10 +57,24 @@ int main(int argc, char *argv[])
 		else
 			r_table[i].type = SECONDARY;
 
-		printf("id: %d, name: %s, type: %d\n", i, r_table[i].task_name, r_table[i].type);
-		t_info.nr_task++;
+		if (r_table[i].type == LATENCY) {
+			tok = strtok(NULL, " ");
+			r_table[i].stat.qos = strtoull(tok, NULL, 10);
+		}
+
+		printf("id: %d, name: %s, type: %d\n qos: %lu", 
+				i, r_table[i].task_name, r_table[i].type, r_table[i].stat.qos);
+		t_info.nr_task++;	
 	}
+
 	printf("# of tasks: %d\n", t_info.nr_task);
+	pointer = malloc(sizeof(int) * t_info.nr_task);
+	if (!pointer) {
+		fprintf(stderr, "fail to malloc\n");
+		goto free;
+	}
+	
+	memset(pointer, 0, sizeof(int) * t_info.nr_task);
 
 	fclose(config_fp);
 	init_resource();
@@ -69,6 +84,8 @@ int main(int argc, char *argv[])
 	monitor();
 
 free:
+	free(pointer);
+unlink:
 	shm_unlink("resource_table");
 
 	return 0;
@@ -81,7 +98,7 @@ void parse_options(int argc, char *argv[])
 	option.total_bandwidth = 7000000000;
 	option.total_qps = 100;
 	opterr = 0; 
-	while ((c = getopt(argc, argv, "b:q:p:")) != EOF) {
+	while ((c = getopt(argc, argv, "b:q:p:n:")) != EOF) {
 		switch (c) {
 			case 'b':
 				option.total_bandwidth = strtoull(optarg, NULL, 10);
@@ -92,7 +109,9 @@ void parse_options(int argc, char *argv[])
 			case 'p':
 				option.config_path = optarg;
 				break;
-				
+			case 'n':
+				option.node_config_path = optarg;
+				break;
 			case '?':
 				fprintf(stderr, "unrecognized option: -%c", optopt);
 				break;
@@ -108,6 +127,8 @@ int init_task_info(struct task_info *t_info, uint64_t total_bandwidth, uint64_t 
 	t_info->nr_task = 0;
 	t_info->total_bandwidth = total_bandwidth;
 	t_info->total_qps = total_qps;
+
+	return 0;
 }
 
 void init_resource(void)
@@ -120,6 +141,7 @@ void init_resource(void)
 		r_table[i].allocated_qps = t_info.total_qps / t_info.nr_task;
 		r_table[i].on = false;
 	}
+	r_table[1].allocated_qps = 50;
 }
 
 int monitor(void)
@@ -128,11 +150,15 @@ int monitor(void)
 	int cnt = 0;
 
 	while (true) {
-		usleep(100);
+		usleep(10);
 		for (i = 0; i < t_info.nr_task; i++) {
-			if (r_table[i].on) {
-		//		cache_flush(&r_table[i].cache);
+			if (r_table[i].on && (r_table[i].cache.space < 10)) {
 				drop_entry(i);
+				/*
+				if (cnt % 10000 == 0)
+					printf("%d\n", r_table[i].cache.space);
+				cnt++;
+				*/
 			}
 		}
 	}
@@ -143,28 +169,37 @@ int monitor(void)
 
 int drop_entry(int task_id)
 {
-	int i, target; 
+	static bool error = false;
+	int i, target, loop; 
+	int entry_size = r_table[task_id].cache.entry_size;
+	struct qp_cache *cache = &r_table[task_id].cache;
 
-retry:
-	i = rand() % r_table[task_id].ht.capacity;
-	if ((int) r_table[task_id].ht.access_history[i] < 0)
-		goto retry;
+	target = -1;
+	loop = -1;
+	for (i = pointer[task_id]; loop < 3; i = (i + 1) % entry_size) {
+		if (cache->entry[i] == 2) {
+			cache->entry[i]--;
+		}
+		else if (cache->entry[i] == 1) {
+			target = i;
+			break;
+		}
+		if (i == pointer[task_id]) {
+			loop++;
+		}
+	}
 
-	target = r_table[task_id].ht.access_history[i];
+	if (target < 0)  {
+		if (!error)
+			printf("error task id: %d size: %d space: %d i: %d pointer: %d\n", 
+					task_id, entry_size, cache->space, i, 
+					pointer[task_id]);
+		error = true;
+		return -1;
+	}
 
-	/*
-	   target = -1;
-	   for (i = 0; i < r_table[task_id].cache.capacity; i++)
-	   if (r_table[task_id].cache.entry[i]) {
-	   target = i;
-	   break;
-	   }
-
-	   if (target < 0)
-	   return -1;
-	   */
-
-	cache_delete(&(r_table[task_id].cache), target);
+	pointer[task_id] = (target + 1) % entry_size;
+	cache_delete(cache, target);
 
 	return 0;
 }

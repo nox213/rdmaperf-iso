@@ -59,6 +59,7 @@ rdma_library(ibverbs "${CMAKE_CURRENT_BINARY_DIR}/libibverbs.map"
   verbs.c
   tokenbucket.c
   qp_cache.c
+  resource_table.c
   )
 target_link_libraries(ibverbs LINK_PRIVATE
   ${NL_LIBRARIES}

@@ -20,6 +20,12 @@ enum task_type {
 	NONE,
 };
 
+struct task_stat {
+	uint32_t qos;
+	uint32_t cur_median;
+	uint32_t cur_tail;
+};
+
 
 struct history_table {
 	uint32_t access_history[HISTORY_LENGTH];
@@ -30,13 +36,17 @@ struct history_table {
 
 struct resource {
 	bool on;
+
 	uint64_t allocated_bandwidth;
 	uint64_t allocated_qps;
-	char task_name[40];
-	enum task_type type;
+
 	struct qp_cache cache;
 	struct token_bucket tb[NR_BUCKET];
 	struct history_table ht;
+
+	struct task_stat stat;
+	enum task_type type;
+	char task_name[40];
 };
 
 static inline int init_history_table(struct history_table *ht)
@@ -64,6 +74,13 @@ static inline void consume_history(struct history_table *ht)
 {
 	;
 }
+
+static inline uint32_t get_tail_lat(struct resource *res)
+{
+	return __atomic_load_n(&res->stat.cur_tail, __ATOMIC_RELAXED);
+}
+
+void report_latency(uint32_t median, uint32_t tail);
 
 #endif
 

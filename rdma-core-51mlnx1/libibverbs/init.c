@@ -639,8 +639,9 @@ static int init_resource_table(void)
 
 	printf("init qp cache, qps: %d\n", my_res->allocated_qps);
 	init_qp_cache(&my_res->cache, my_res->allocated_qps);
+	printf("cap: %d space: %d\n", my_res->cache.capacity, my_res->cache.space); 
 	init_history_table(&my_res->ht);
-	printf("init token bucket\n");
+
 	/*
 	for (i = 0; i < NR_BUCKET; i++)
 		init_token_bucket(&(my_res->tb[i]), 1, BURST_SIZE);

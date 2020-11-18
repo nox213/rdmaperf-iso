@@ -20,6 +20,7 @@ struct config {
 	uint64_t total_bandwidth;	
 	uint64_t total_qps;	
 	char *config_path;
+	char *node_config_path;
 };
 
 int init_task_info(struct task_info *t_info, uint64_t total_bandwidth, uint64_t total_qps);

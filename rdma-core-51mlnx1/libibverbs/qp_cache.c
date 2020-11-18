@@ -10,26 +10,30 @@
 extern struct resource *my_res;
 
 
-static inline bool cache_find(struct qp_cache *cache, uint32_t value)
+static inline int cache_find(struct qp_cache *cache, uint32_t value)
 {
+	if (cache->entry[value])
+		cache->entry[value] = 2;
 	return cache->entry[value];
 }
 
 static inline int cache_insert(struct qp_cache *cache, uint32_t value)
 {
-	int space;
 loop:
-	while (!(space = cache->space))
+	while (!cache->space)
 		;
+
 	pthread_spin_lock(&cache->cache_lock);
 	if (cache_find(cache, value))
 		goto unlock;
 
-	while (!(space = cache->space))
-		;
+	if (!cache->space) {
+		pthread_spin_unlock(&cache->cache_lock);
+		goto loop;
+	}
 
 	cache->space--;
-	cache->entry[value] = true;
+	cache->entry[value] = 2;
 
 unlock:
 	pthread_spin_unlock(&cache->cache_lock);
