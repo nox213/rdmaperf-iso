@@ -18,7 +18,15 @@ struct qp_cache {
 	pthread_spinlock_t cache_lock;
 };
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int cache_find_or_insert(uint32_t value);
+
+#ifdef __cplusplus
+}
+#endif
 
 static inline int init_qp_cache(struct qp_cache *cache, int capacity)
 {

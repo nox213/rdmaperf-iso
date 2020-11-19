@@ -80,7 +80,16 @@ static inline uint32_t get_tail_lat(struct resource *res)
 	return __atomic_load_n(&res->stat.cur_tail, __ATOMIC_RELAXED);
 }
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void report_latency(uint32_t median, uint32_t tail);
+enum task_type my_task_type(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 

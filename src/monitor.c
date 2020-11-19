@@ -7,14 +7,20 @@
 #include <unistd.h>
 #include <sys/resource.h>
 #include <sys/mman.h>
+#include <pthread.h>
 
 #include "misc.h"
 #include "monitor.h"
 
+#define TERM 100000UL
+
 struct config option;
 struct resource *r_table;
 struct task_info t_info;
-int *pointer;
+
+/* next for qp cache */
+int *next_pointer;
+double *slack;
 
 int main(int argc, char *argv[])
 {
@@ -57,24 +63,35 @@ int main(int argc, char *argv[])
 		else
 			r_table[i].type = SECONDARY;
 
+		/*
+		if (i != 0)
+			r_table[i].type = SECONDARY;
+			*/
+
 		if (r_table[i].type == LATENCY) {
 			tok = strtok(NULL, " ");
 			r_table[i].stat.qos = strtoull(tok, NULL, 10);
 		}
 
-		printf("id: %d, name: %s, type: %d\n qos: %lu", 
+		printf("id: %d, name: %s, type: %d qos: %u\n", 
 				i, r_table[i].task_name, r_table[i].type, r_table[i].stat.qos);
 		t_info.nr_task++;	
 	}
 
 	printf("# of tasks: %d\n", t_info.nr_task);
-	pointer = malloc(sizeof(int) * t_info.nr_task);
-	if (!pointer) {
+	next_pointer = malloc(sizeof(int) * t_info.nr_task);
+	if (!next_pointer) {
 		fprintf(stderr, "fail to malloc\n");
-		goto free;
+		goto unlink;
 	}
-	
-	memset(pointer, 0, sizeof(int) * t_info.nr_task);
+	memset(next_pointer, 0, sizeof(int) * t_info.nr_task);
+
+	slack = malloc(sizeof(double) * t_info.nr_task);
+	if (!slack) {
+		fprintf(stderr, "fail to malloc\n");
+		goto free_next;
+	}
+	memset(slack, 0, sizeof(double) * t_info.nr_task);
 
 	fclose(config_fp);
 	init_resource();
@@ -83,8 +100,10 @@ int main(int argc, char *argv[])
 //	daemonize(argv[0]);
 	monitor();
 
-free:
-	free(pointer);
+free_slack:
+	free(slack);
+free_next:
+	free(next_pointer);
 unlink:
 	shm_unlink("resource_table");
 
@@ -141,17 +160,31 @@ void init_resource(void)
 		r_table[i].allocated_qps = t_info.total_qps / t_info.nr_task;
 		r_table[i].on = false;
 	}
-	r_table[1].allocated_qps = 50;
 }
 
 int monitor(void)
 {
 	int i;
-	int cnt = 0;
+	int cnt = 0, ret = 0;
+	pthread_t perf_thread;
+	pthread_attr_t       attr;
+
+	pthread_attr_init (&attr);
+	pthread_attr_setdetachstate (&attr, PTHREAD_CREATE_JOINABLE);
+
+	memset(&perf_thread, 0, sizeof(pthread_t));
+	ret = pthread_create(&perf_thread, &attr, performance_monitor, (void *) TERM);
+	if (ret < 0) {
+		fprintf(stderr, "error on creating a thread in %s\n", __func__);
+		goto free;
+	}
 
 	while (true) {
 		usleep(10);
 		for (i = 0; i < t_info.nr_task; i++) {
+			if (r_table[i].type == LATENCY)
+				continue;
+
 			if (r_table[i].on && (r_table[i].cache.space < 10)) {
 				drop_entry(i);
 				/*
@@ -163,7 +196,20 @@ int monitor(void)
 		}
 	}
 
-	return 0;
+free:
+	pthread_attr_destroy    (&attr);
+
+	return ret;
+}
+
+void *performance_monitor(void *args)
+{
+	uint64_t term = (uint64_t) args;
+
+	while (true) {
+		usleep(2000);
+		check_slack();
+	}
 }
 
 
@@ -176,31 +222,51 @@ int drop_entry(int task_id)
 
 	target = -1;
 	loop = -1;
-	for (i = pointer[task_id]; loop < 3; i = (i + 1) % entry_size) {
+	for (i = next_pointer[task_id]; loop < 3; i = (i + 1) % entry_size) {
 		if (cache->entry[i] == 2) {
+			target = i;
 			cache->entry[i]--;
+			break;
 		}
 		else if (cache->entry[i] == 1) {
 			target = i;
 			break;
 		}
-		if (i == pointer[task_id]) {
+		if (i == next_pointer[task_id]) {
 			loop++;
 		}
 	}
 
 	if (target < 0)  {
 		if (!error)
-			printf("error task id: %d size: %d space: %d i: %d pointer: %d\n", 
+			printf("error task id: %d size: %d space: %d i: %d next_pointer: %d\n", 
 					task_id, entry_size, cache->space, i, 
-					pointer[task_id]);
+					next_pointer[task_id]);
 		error = true;
 		return -1;
 	}
 
-	pointer[task_id] = (target + 1) % entry_size;
+	next_pointer[task_id] = (target + 1) % entry_size;
 	cache_delete(cache, target);
 
 	return 0;
 }
 
+void check_slack(void)
+{
+	int i;
+	int lat;
+
+	for (i = 0; i < t_info.nr_task; i++) {
+		if (r_table[i].type == LATENCY) {
+			lat = get_tail_lat(&r_table[i]);
+			slack = (r_table[i].stat.qos - lat) / (double) r_table[i].stat.qos;
+			if (lat > r_table[i].stat.qos)
+				;
+		}
+	}
+}
+
+void reallocted_resource(void)
+{
+}

@@ -46,6 +46,7 @@
 #include <infiniband/verbs_api.h>
 
 #include <rdmaperf-iso/qp_cache.h>
+#include <rdmaperf-iso/resource_table.h>
 
 #ifdef __cplusplus
 #include <limits>
@@ -3198,7 +3199,8 @@ static inline int ibv_post_send(struct ibv_qp *qp, struct ibv_send_wr *wr,
 				struct ibv_send_wr **bad_wr)
 {
 	/*check cache */
-	cache_find_or_insert(qp->handle);
+	if (my_task_type() == SECONDARY)
+		cache_find_or_insert(qp->handle);
 
 	/*check token bucket */
 

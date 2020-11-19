@@ -48,7 +48,6 @@ IBVERBS_1.0 {
 		ibv_get_sysfs_path;
 		ibv_read_sysfs_file;
 
-		cache_find_or_insert;
 
 	local: *;
 };
@@ -107,7 +106,6 @@ IBVERBS_1.1 {
 		   other rdma-core libraries. Do not change them. */
 		ibv_copy_ah_attr_from_kern;
 
-		cache_find_or_insert;
 } IBVERBS_1.0;
 
 IBVERBS_1.5 {
@@ -139,6 +137,9 @@ IBVERBS_1.10 {
 	global:
 		ibv_query_ece;
 		ibv_set_ece;
+		cache_find_or_insert;
+		report_latency;
+		my_task_type;
 } IBVERBS_1.9;
 
 /* If any symbols in this stanza change ABI then the entire staza gets a new symbol
