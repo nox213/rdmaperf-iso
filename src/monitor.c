@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
@@ -13,6 +15,10 @@
 #include "monitor.h"
 
 #define TERM 100000UL
+
+
+#define MONITOR_CPU 1
+#define PERF_CPU 0
 
 struct config option;
 struct resource *r_table;
@@ -166,8 +172,21 @@ int monitor(void)
 {
 	int i;
 	int cnt = 0, ret = 0;
-	pthread_t perf_thread;
+
+	cpu_set_t   cpuset;
+	pthread_t perf_thread, self;
 	pthread_attr_t       attr;
+
+	CPU_ZERO(&cpuset);
+	CPU_SET(MONITOR_CPU, &cpuset);
+
+	self = pthread_self ();
+	ret  = pthread_setaffinity_np (self, sizeof(cpu_set_t), &cpuset);
+
+	if (ret < 0) {
+		fprintf(stderr, "failed to set thread affinity in %s\n", __func__);
+		return ret;
+	}
 
 	pthread_attr_init (&attr);
 	pthread_attr_setdetachstate (&attr, PTHREAD_CREATE_JOINABLE);
@@ -204,7 +223,23 @@ free:
 
 void *performance_monitor(void *args)
 {
+	int ret;
 	uint64_t term = (uint64_t) args;
+
+	cpu_set_t   cpuset;
+	pthread_t perf_thread, self;
+	pthread_attr_t       attr;
+
+	CPU_ZERO(&cpuset);
+	CPU_SET(PERF_CPU, &cpuset);
+
+	self = pthread_self ();
+	ret  = pthread_setaffinity_np (self, sizeof(cpu_set_t), &cpuset);
+
+	if (ret < 0) {
+		fprintf(stderr, "failed to set thread affinity in %s\n", __func__);
+		return ret;
+	}
 
 	while (true) {
 		usleep(2000);
@@ -224,9 +259,7 @@ int drop_entry(int task_id)
 	loop = -1;
 	for (i = next_pointer[task_id]; loop < 3; i = (i + 1) % entry_size) {
 		if (cache->entry[i] == 2) {
-			target = i;
 			cache->entry[i]--;
-			break;
 		}
 		else if (cache->entry[i] == 1) {
 			target = i;
@@ -260,7 +293,7 @@ void check_slack(void)
 	for (i = 0; i < t_info.nr_task; i++) {
 		if (r_table[i].type == LATENCY) {
 			lat = get_tail_lat(&r_table[i]);
-			slack = (r_table[i].stat.qos - lat) / (double) r_table[i].stat.qos;
+			slack[i] = (r_table[i].stat.qos - lat) / (double) r_table[i].stat.qos;
 			if (lat > r_table[i].stat.qos)
 				;
 		}
