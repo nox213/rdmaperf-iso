@@ -16,9 +16,10 @@
 
 #define TERM 100000UL
 
+#define MONITOR_CPU 7
+#define PERF_CPU 8
 
-#define MONITOR_CPU 1
-#define PERF_CPU 0
+#define MIN(x, y) (x) < (y) ? (x) : (y)
 
 struct config option;
 struct resource *r_table;
@@ -221,32 +222,6 @@ free:
 	return ret;
 }
 
-void *performance_monitor(void *args)
-{
-	int ret;
-	uint64_t term = (uint64_t) args;
-
-	cpu_set_t   cpuset;
-	pthread_t perf_thread, self;
-	pthread_attr_t       attr;
-
-	CPU_ZERO(&cpuset);
-	CPU_SET(PERF_CPU, &cpuset);
-
-	self = pthread_self ();
-	ret  = pthread_setaffinity_np (self, sizeof(cpu_set_t), &cpuset);
-
-	if (ret < 0) {
-		fprintf(stderr, "failed to set thread affinity in %s\n", __func__);
-		return ret;
-	}
-
-	while (true) {
-		usleep(2000);
-		check_slack();
-	}
-}
-
 
 int drop_entry(int task_id)
 {
@@ -285,21 +260,80 @@ int drop_entry(int task_id)
 	return 0;
 }
 
-void check_slack(void)
+void *performance_monitor(void *args)
 {
-	int i;
-	int lat;
+	int i, ret;
+	uint64_t term = (uint64_t) args;
 
+	cpu_set_t   cpuset;
+	pthread_t perf_thread, self;
+	pthread_attr_t       attr;
+
+	CPU_ZERO(&cpuset);
+	CPU_SET(PERF_CPU, &cpuset);
+
+	self = pthread_self ();
+	ret  = pthread_setaffinity_np (self, sizeof(cpu_set_t), &cpuset);
+
+	if (ret < 0) {
+		fprintf(stderr, "failed to set thread affinity in %s\n", __func__);
+		return ret;
+	}
+
+	while (true) {
+		usleep(2000);
+		i = check_slack();
+	}
+}
+
+
+int check_slack(void)
+{
+	int i, min_i;
+	int lat;
+	double min;
+
+	min_i = -1;
+	min = 100;
 	for (i = 0; i < t_info.nr_task; i++) {
 		if (r_table[i].type == LATENCY) {
 			lat = get_tail_lat(&r_table[i]);
-			slack[i] = (r_table[i].stat.qos - lat) / (double) r_table[i].stat.qos;
+			slack[i] = (r_table[i].stat.qos - lat) / 
+				(double) r_table[i].stat.qos;
+
+			if (min > slack[i]) {
+				min = slack[i];
+				min_i = i;
+			}
+
 			if (lat > r_table[i].stat.qos)
 				;
 		}
 	}
+
+	return min_i;
 }
 
-void reallocted_resource(void)
+void reallocate_resource(void)
 {
+}
+
+struct resource_table *find_victim(void)
+{
+	struct qp_cache *tmp;
+	int i, max_i;
+	int usage = 0;
+	
+	for (i = 0; i < t_info.nr_task; i++) {
+		if (r_table[i].type == LATENCY)
+			continue;
+
+		tmp = &r_table[i].cache;
+		if (tmp->capacity - tmp->space > usage) {
+			usage = tmp->capacity - tmp->space;
+			max_i = i;
+		}
+	}
+
+	return &r_table[max_i];
 }

@@ -30,8 +30,9 @@ void parse_options(int argc, char *argv[]);
 int drop_entry(int task_id);
 
 void *performance_monitor(void *args);
-void check_slack(void);
-void reallocted_resource(void);
+int check_slack(void);
+struct resource_table *find_victim(void);
+void reallocate_resource(void);
 
 static inline uint64_t compute_elapsed_us(struct timespec *prev, struct timespec *cur)
 {

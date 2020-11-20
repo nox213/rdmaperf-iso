@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.10)
 # set the project name
 project(rdmaperf-iso C)
 
-set(HEADER_DIR  /home/yjjeon/rdmaperf-iso/rdma-core-51mlnx1/build/include)
-set(LIB_DIR  /home/yjjeon/rdmaperf-iso/rdma-core-51mlnx1/build/lib)
+set(HEADER_DIR  /home/yoonjae/rdmaperf-iso/rdma-core-51mlnx1/build/include)
+set(LIB_DIR  /home/yoonjae/rdmaperf-iso/rdma-core-51mlnx1/build/lib)
 set(SRCS monitor.c misc.c)
 
 
