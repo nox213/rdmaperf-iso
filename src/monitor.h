@@ -30,14 +30,28 @@ void parse_options(int argc, char *argv[]);
 int drop_entry(int task_id);
 
 void *performance_monitor(void *args);
-int check_slack(void);
-struct resource_table *find_victim(void);
-void reallocate_resource(void);
+int find_min_slack(void);
+int find_max_slack(void);
+struct resource *find_victim(void);
+void retrieve_resource(void);
+void alloc_resource(void);
+struct resource *find_victim(void);
+struct resource *find_reciever(void);
 
 static inline uint64_t compute_elapsed_us(struct timespec *prev, struct timespec *cur)
 {
 	return ((cur->tv_sec - prev->tv_sec) * 1000000000UL +
 		(cur->tv_nsec - prev->tv_nsec)) / 1000;
+}
+
+static inline bool is_primary_task(struct resource *res)
+{
+	return (res->type == LATENCY && res->on) ? true : false;
+}
+
+static inline bool is_secondary_task(struct resource *res)
+{
+	return (res->type == SECONDARY && res->on) ? true : false;
 }
 
 #endif

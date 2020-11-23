@@ -10,6 +10,11 @@
 
 #define CACHE_SIZE 500
 
+enum direction {
+	UP,
+	DOWN,
+};
+
 struct qp_cache {
 	int entry[CACHE_SIZE];
 	int entry_size;
@@ -60,6 +65,23 @@ static inline int cache_flush(struct qp_cache *cache)
 	memset(cache->entry, 0, sizeof(cache->entry[0]) * cache->capacity);
 	cache->space = cache->capacity;
 	return 0;
+}
+
+static inline int reconfig_cache(struct qp_cache *cache, int num, enum direction op)
+{
+	if (!cache)
+		return -1;
+
+	if ((cache->capacity < num) && (op == UP))
+		return -1;
+
+	pthread_spin_lock(&cache->cache_lock);
+	if (op == UP)
+		cache->capacity += num;
+	else if (op == DOWN)
+		cache->capacity -= num;
+	cache_flush(cache);
+	pthread_spin_unlock(&cache->cache_lock);
 }
 
 #endif
