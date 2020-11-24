@@ -12,6 +12,6 @@ link_directories(${LIB_DIR})
 
 # add the executable
 add_executable(monitor ${SRCS})
-target_link_libraries(monitor pthread ibverbs rt)
+target_link_libraries(monitor pthread ibverbs rt m)
 
 

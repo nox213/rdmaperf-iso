@@ -18,7 +18,7 @@ enum direction {
 struct qp_cache {
 	int entry[CACHE_SIZE];
 	int entry_size;
-	int capacity;
+	volatile int capacity;
 	volatile int space;
 	pthread_spinlock_t cache_lock;
 };
@@ -48,7 +48,8 @@ static inline int cache_delete(struct qp_cache *cache, uint32_t value)
 	if (cache->space == cache->capacity)
 		return -1;
 	pthread_spin_lock(&cache->cache_lock);
-	cache->space++;
+	if (cache->space + 1 <= cache->capacity)
+		cache->space++;
 	cache->entry[value] = 0;
 	pthread_spin_unlock(&cache->cache_lock);
 
@@ -72,15 +73,20 @@ static inline int reconfig_cache(struct qp_cache *cache, int num, enum direction
 	if (!cache)
 		return -1;
 
-	if ((cache->capacity < num) && (op == UP))
+	if ((cache->capacity < num) && (op == DOWN))
 		return -1;
 
 	pthread_spin_lock(&cache->cache_lock);
-	if (op == UP)
+	if (op == UP) {
 		cache->capacity += num;
-	else if (op == DOWN)
+		cache->space += num;
+	}
+	else if (op == DOWN) {
 		cache->capacity -= num;
-	cache_flush(cache);
+		cache->space -= num;
+		if (cache->space < 0)
+			cache->space = 0;
+	}
 	pthread_spin_unlock(&cache->cache_lock);
 }
 

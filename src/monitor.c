@@ -10,6 +10,7 @@
 #include <sys/resource.h>
 #include <sys/mman.h>
 #include <pthread.h>
+#include <math.h>
 
 #include "misc.h"
 #include "monitor.h"
@@ -28,6 +29,7 @@ struct task_info t_info;
 /* next for qp cache */
 int *next_pointer;
 double *slack;
+enum resource_direction *r_dir;
 
 int main(int argc, char *argv[])
 {
@@ -101,6 +103,13 @@ int main(int argc, char *argv[])
 	}
 	memset(slack, 0, sizeof(double) * t_info.nr_task);
 
+	r_dir = malloc(sizeof(enum resource_direction) * t_info.nr_task);
+	if (!r_dir) {
+		fprintf(stderr, "fail to malloc\n");
+		goto free_slack;
+	}
+	memset(r_dir, 0, sizeof(enum resource_direction) * t_info.nr_task);
+
 	fclose(config_fp);
 	init_resource();
 	printf("init done\n");
@@ -108,6 +117,8 @@ int main(int argc, char *argv[])
 //	daemonize(argv[0]);
 	monitor();
 
+free_dir:
+	free(r_dir);
 free_slack:
 	free(slack);
 free_next:
@@ -174,6 +185,7 @@ int monitor(void)
 {
 	int i;
 	int cnt = 0, ret = 0;
+	double remain = 0;
 
 	cpu_set_t   cpuset;
 	pthread_t perf_thread, self;
@@ -206,13 +218,9 @@ int monitor(void)
 			if (r_table[i].type == LATENCY)
 				continue;
 
-			if (r_table[i].on && (r_table[i].cache.space < 10)) {
+			remain = (double) r_table[i].cache.space / r_table[i].cache.capacity;
+			if (r_table[i].on && remain < 0.5) {
 				drop_entry(i);
-				/*
-				if (cnt % 10000 == 0)
-					printf("%d\n", r_table[i].cache.space);
-				cnt++;
-				*/
 			}
 		}
 	}
@@ -263,8 +271,10 @@ int drop_entry(int task_id)
 
 void *performance_monitor(void *args)
 {
-	int min_i, max_i, ret;
+	int min_i, max_i, ret, i;
 	uint64_t term = (uint64_t) args;
+	uint64_t prev_time_stamp;
+	double prev_slack;
 
 	cpu_set_t   cpuset;
 	pthread_t perf_thread, self;
@@ -283,28 +293,53 @@ void *performance_monitor(void *args)
 
 	while (true) {
 		usleep(2000);
+		cal_slack();
 		min_i = find_min_slack();
 		max_i = find_max_slack();
 		if (min_i < 0 || max_i < 0)
 			continue;
 
 		if (slack[min_i] < 0.05) {
-			retrieve_resource();
+			prev_time_stamp = get_time_stamp(&r_table[min_i]);
+			prev_slack = slack[min_i];
+			i = retrieve_resource(0.2);
+			if (i < 0)
+				continue;
+
+			usleep(50000);
+			while (prev_time_stamp != get_time_stamp(&r_table[min_i]))
+					;
+
+			cal_slack();
+			if (prev_slack >= slack[min_i]) {
+				alloc_resource(0.25);
+				r_dir[i] = ALLOC; 
+			}
 		}
-		else if (slack[max_i] > 0.2) {
-			alloc_resource();
+		else if (slack[max_i] > 0.20) {
+			prev_time_stamp = get_time_stamp(&r_table[max_i]);
+			i = alloc_resource(0.1);
+			if (i < 0)
+				continue;
+
+			usleep(50000);
+			while (prev_time_stamp != get_time_stamp(&r_table[max_i]))
+					;
+
+			cal_slack();
+			if (slack[max_i] < 0.05) {
+				retrieve_resource(0.1);
+				r_dir[i] = RET;
+			}
 		}
 	}
 }
 
-int find_min_slack(void)
+void cal_slack(void)
 {
-	int i, min_i;
+	int i;
 	int lat, diff;
-	double min;
 
-	min_i = -1;
-	min = 100;
 	for (i = 0; i < t_info.nr_task; i++) {
 		if (is_primary_task(&r_table[i])) {
 			lat = get_tail_lat(&r_table[i]);
@@ -312,11 +347,21 @@ int find_min_slack(void)
 			if (diff < 0)
 				diff = 0;
 			slack[i] = diff / (double) r_table[i].stat.qos;
+		}
+	}
+}
 
-			if (min > slack[i]) {
-				min = slack[i];
-				min_i = i;
-			}
+int find_min_slack(void)
+{
+	int i, min_i;
+	double min;
+
+	min_i = -1;
+	min = 100;
+	for (i = 0; i < t_info.nr_task; i++) {
+		if (min > slack[i]) {
+			min = slack[i];
+			min_i = i;
 		}
 	}
 
@@ -326,52 +371,66 @@ int find_min_slack(void)
 int find_max_slack(void)
 {
 	int i, max_i;
-	int lat, diff;
 	double max;
 
 	max_i = -1;
 	max = -100;
 	for (i = 0; i < t_info.nr_task; i++) {
-		if (is_primary_task(&r_table[i])) {
-			lat = get_tail_lat(&r_table[i]);
-			diff = r_table[i].stat.qos - lat;
-			if (diff < 0)
-				diff = 0;
-			slack[i] = diff / (double) r_table[i].stat.qos;
-
-			if (max < slack[i]) {
-				max = slack[i];
-				max_i = i;
-			}
+		if (max < slack[i]) {
+			max = slack[i];
+			max_i = i;
 		}
 	}
 
 	return max_i;
 }
 
-void retrieve_resource(void)
+int retrieve_resource(double ratio)
 {
-	struct resource *res = find_victim();
-	int num = (int) (res->cache.capacity * 0.2);
+	int num; 
+	int i = find_victim();
+	struct resource *res;
+
+	if (i < 0)
+		return i;
+
+	res = &r_table[i];
+	num = ceil(res->cache.capacity * ratio);
 	reconfig_cache(&res->cache, num, DOWN);
-	
+	r_dir[i] = BOTH;
+	printf("num:%d  cap: %d in %s\n", num, res->cache.capacity, __func__);
+
+	return i;
 }
 
-void alloc_resource(void)
+int alloc_resource(double ratio)
 {
-	struct resource *res = find_reciever();
-	reconfig_cache(&res->cache, 5, UP);
+	int num;
+	int i = find_reciever();
+	struct resource *res;
+
+	if (i < 0)
+		return i;
+
+	res = &r_table[i];
+	num = ceil(res->cache.capacity * ratio);
+	reconfig_cache(&res->cache, num, UP);
+	r_dir[i] = BOTH;
+	printf("cap: %d in %s\n", res->cache.capacity, __func__);
+
+	return i;
 }
 
 /* find victim by absolute usage */
-struct resource *find_victim(void)
+int find_victim(void)
 {
 	struct qp_cache *tmp;
 	int i, max_i;
 	int usage = 0;
-	
+
+	max_i = -1;
 	for (i = 0; i < t_info.nr_task; i++) {
-		if (!r_table[i].on)
+		if (!r_table[i].on || r_dir[i] == ALLOC)
 			continue;
 
 		if (r_table[i].type == LATENCY)
@@ -384,31 +443,34 @@ struct resource *find_victim(void)
 		}
 	}
 
-	return &r_table[max_i];
+	return max_i;
 }
 
 /*find reciever by relative usage */
-struct resource *find_reciever(void)
+int find_reciever(void)
 {
 	struct qp_cache *tmp;
 	int i, max_i;
 	double usage, max_usage;
-	
+
+	max_i = -1;
 	max_usage = 0;
 	for (i = 0; i < t_info.nr_task; i++) {
-		if (!r_table[i].on)
+		if (!r_table[i].on || r_dir[i] == RET)
 			continue;
 
 		if (r_table[i].type == LATENCY)
 			continue;
 
 		tmp = &r_table[i].cache;
-		usage = (double) tmp->space / tmp->capacity;
+		usage = (double) (tmp->capacity - tmp->space) / tmp->capacity;
+		if (usage < 0.7)
+			continue;
 		if (usage > max_usage) {
 			max_usage = usage;
 			max_i = i;
 		}
 	}
 
-	return &r_table[max_i];
+	return max_i;
 }

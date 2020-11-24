@@ -12,8 +12,6 @@ extern struct resource *my_res;
 
 static inline int cache_find(struct qp_cache *cache, uint32_t value)
 {
-	if (cache->entry[value])
-		cache->entry[value] = 2;
 	return cache->entry[value];
 }
 
@@ -33,7 +31,7 @@ loop:
 	}
 
 	cache->space--;
-	cache->entry[value] = 2;
+	cache->entry[value] = 1;
 
 unlock:
 	pthread_spin_unlock(&cache->cache_lock);
