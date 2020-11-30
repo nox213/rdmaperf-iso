@@ -47,6 +47,7 @@
 
 #include <rdmaperf-iso/qp_cache.h>
 #include <rdmaperf-iso/resource_table.h>
+#include <rdmaperf-iso/tokenbucket.h>
 
 #ifdef __cplusplus
 #include <limits>
@@ -1230,6 +1231,9 @@ struct ibv_qp {
 	uint32_t		qp_num;
 	enum ibv_qp_state       state;
 	enum ibv_qp_type	qp_type;
+
+	int 			bucket_index;
+	int 			local_bucket_index;
 
 	pthread_mutex_t		mutex;
 	pthread_cond_t		cond;
@@ -3199,10 +3203,21 @@ static inline int ibv_post_send(struct ibv_qp *qp, struct ibv_send_wr *wr,
 				struct ibv_send_wr **bad_wr)
 {
 	/*check cache */
-	if (my_task_type() == SECONDARY)
+	if (my_task_type() == SECONDARY) {
+		uint64_t size = 0;
+		struct ibv_send_wr *cur = wr;
 		cache_find_or_insert(qp->handle);
+		/* TODO: get total packet size by iterating wr list */
+		while (cur) {
+			for (int i = 0; i < cur->num_sge; i++)
+				size += cur->sg_list[i].length;
+			cur = cur->next;
 
-	/*check token bucket */
+		}
+		/*check token bucket */
+		wait_for_cache_token(qp->local_bucket_index);
+		wait_for_token(size, qp->bucket_index);
+	}
 
 	return qp->context->ops.post_send(qp, wr, bad_wr);
 }

@@ -32,9 +32,9 @@ void init_resource(void);
 
 int init_task_info(struct task_info *t_info, uint64_t total_bandwidth, uint64_t total_qps);
 void parse_options(int argc, char *argv[]);
-int drop_entry(int task_id);
 
-void *performance_monitor(void *args);
+void *network_monitor(void *args);
+void *nic_cache_monitor(void *args);
 void cal_slack(void);
 int find_min_slack(void);
 int find_max_slack(void);
@@ -57,6 +57,13 @@ static inline bool is_primary_task(struct resource *res)
 static inline bool is_secondary_task(struct resource *res)
 {
 	return (res->type == SECONDARY && res->on) ? true : false;
+}
+
+static inline void wait_for_new_time_stamp(uint64_t *prev, struct resource *res)
+{
+		while (*prev == get_time_stamp(res))
+			;
+		*prev = get_time_stamp(res);
 }
 
 #endif

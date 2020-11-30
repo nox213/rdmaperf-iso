@@ -71,6 +71,7 @@ static LIST_HEAD(driver_list);
 
 static int shm_fd;
 static struct resource *r_table;
+struct token_bucket *global_tb;
 struct resource *my_res;
 
 static int try_access_device(const struct verbs_sysfs_dev *sysfs_dev)
@@ -611,7 +612,6 @@ out:
 
 static int init_resource_table(void)
 {
-	int i;
 	int id;
 	char *str;
 
@@ -637,15 +637,14 @@ static int init_resource_table(void)
 	}
 	my_res = &r_table[id];
 
-	printf("init qp cache, qps: %d\n", my_res->allocated_qps);
-	init_qp_cache(&my_res->cache, my_res->allocated_qps);
-	printf("cap: %d space: %d\n", my_res->cache.capacity, my_res->cache.space); 
-	init_history_table(&my_res->ht);
+	printf("init qp cache\n");
+	init_qp_cache(&my_res->cache);
 
-	/*
-	for (i = 0; i < NR_BUCKET; i++)
-		init_token_bucket(&(my_res->tb[i]), 1, BURST_SIZE);
-		*/
+	printf("init token bucket\n");
+	global_tb = &r_table[0].tb;
+	/* not a primiary tenant */
+	if (id)
+		init_token_bucket(&my_res->tb, 8000000, 50);
 
 	return 0;
 
@@ -661,7 +660,7 @@ int ibverbs_init(void)
 	if (getenv("RDMAV_FORK_SAFE") || getenv("IBV_FORK_SAFE"))
 		if (ibv_fork_init())
 			fprintf(stderr, PFX "Warning: fork()-safety requested "
-				"but init failed\n");
+					"but init failed\n");
 
 	/* Backward compatibility for the mlx4 driver env */
 	env_value = getenv("MLX4_DEVICE_FATAL_CLEANUP");

@@ -64,8 +64,6 @@ LATEST_SYMVER_FUNC(ibv_get_device_list, 1_1, "IBVERBS_1.1",
 	if (num)
 		*num = 0;
 
-	printf("%d\n", initialized);
-
 	pthread_mutex_lock(&dev_list_lock);
 	if (!initialized) {
 		if (ibverbs_init())

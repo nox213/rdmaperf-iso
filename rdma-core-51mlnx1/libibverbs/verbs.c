@@ -53,7 +53,13 @@
 #include <net/if_arp.h>
 #include "neigh.h"
 
+#include "tokenbucket.h"
+#include "resource_table.h"
+
 #undef ibv_query_port
+
+extern struct resource *my_res;
+extern struct token_bucket *global_tb;
 
 int __attribute__((const)) ibv_rate_to_mult(enum ibv_rate rate)
 {
@@ -612,6 +618,10 @@ LATEST_SYMVER_FUNC(ibv_create_qp, 1_1, "IBVERBS_1.1",
 		qp->events_completed = 0;
 		pthread_mutex_init(&qp->mutex, NULL);
 		pthread_cond_init(&qp->cond, NULL);
+
+		/*alloc token bucket */
+		qp->bucket_index = get_base_bucket(global_tb);
+		qp->local_bucket_index = get_base_bucket(&my_res->tb);
 	}
 
 	return qp;

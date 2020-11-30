@@ -10,16 +10,10 @@
 
 #define CACHE_SIZE 500
 
-enum direction {
-	UP,
-	DOWN,
-};
-
 struct qp_cache {
 	int entry[CACHE_SIZE];
 	int entry_size;
-	volatile int capacity;
-	volatile int space;
+	volatile int usage;
 	pthread_spinlock_t cache_lock;
 };
 
@@ -33,10 +27,9 @@ int cache_find_or_insert(uint32_t value);
 }
 #endif
 
-static inline int init_qp_cache(struct qp_cache *cache, int capacity)
+static inline int init_qp_cache(struct qp_cache *cache)
 {
-	cache->space = capacity;
-	cache->capacity = capacity;
+	cache->usage = 0;
 	cache->entry_size = CACHE_SIZE;
 	memset(cache->entry, 0, sizeof(cache->entry[0]) * CACHE_SIZE);
 	pthread_spin_init(&(cache->cache_lock), PTHREAD_PROCESS_PRIVATE);
@@ -45,49 +38,20 @@ static inline int init_qp_cache(struct qp_cache *cache, int capacity)
 
 static inline int cache_delete(struct qp_cache *cache, uint32_t value)
 {
-	if (cache->space == cache->capacity)
-		return -1;
 	pthread_spin_lock(&cache->cache_lock);
-	if (cache->space + 1 <= cache->capacity)
-		cache->space++;
 	cache->entry[value] = 0;
+	cache->usage--;
 	pthread_spin_unlock(&cache->cache_lock);
 
 	return 0;
-}
-
-static inline bool is_cache_full(struct qp_cache *cache)
-{
-	return cache->space == 0 ? true : false;
 }
 
 static inline int cache_flush(struct qp_cache *cache)
 {
-	memset(cache->entry, 0, sizeof(cache->entry[0]) * cache->capacity);
-	cache->space = cache->capacity;
+	memset(cache->entry, 0, sizeof(cache->entry[0]) * CACHE_SIZE);
+	cache->usage = 0;
 	return 0;
 }
 
-static inline int reconfig_cache(struct qp_cache *cache, int num, enum direction op)
-{
-	if (!cache)
-		return -1;
-
-	if ((cache->capacity < num) && (op == DOWN))
-		return -1;
-
-	pthread_spin_lock(&cache->cache_lock);
-	if (op == UP) {
-		cache->capacity += num;
-		cache->space += num;
-	}
-	else if (op == DOWN) {
-		cache->capacity -= num;
-		cache->space -= num;
-		if (cache->space < 0)
-			cache->space = 0;
-	}
-	pthread_spin_unlock(&cache->cache_lock);
-}
 
 #endif

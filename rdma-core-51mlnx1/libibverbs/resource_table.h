@@ -10,7 +10,6 @@
 #include "tokenbucket.h"
 #include "qp_cache.h"
 
-#define NR_BUCKET 30
 #define TABLE_SIZE 100
 #define HISTORY_LENGTH 100
 
@@ -24,6 +23,7 @@ struct task_stat {
 	uint32_t qos;
 	uint32_t cur_median;
 	uint32_t cur_tail;
+	uint64_t bandwidth;
 	uint64_t time_stamp;
 };
 
@@ -37,12 +37,13 @@ struct history_table {
 
 struct resource {
 	bool on;
+	bool cache_limit;
 
 	uint64_t allocated_bandwidth;
 	uint64_t allocated_qps;
 
 	struct qp_cache cache;
-	struct token_bucket tb[NR_BUCKET];
+	struct token_bucket tb;
 	struct history_table ht;
 
 	struct task_stat stat;
@@ -86,11 +87,17 @@ static inline uint32_t get_tail_lat(struct resource *res)
 	return __atomic_load_n(&res->stat.cur_tail, __ATOMIC_RELAXED);
 }
 
+static inline uint32_t get_bw(struct resource *res)
+{
+	return __atomic_load_n(&res->stat.bandwidth, __ATOMIC_RELAXED);
+}
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 void report_latency(uint32_t median, uint32_t tail, uint64_t time_stamp);
+void report_bw(uint64_t bandwidth, uint64_t time_stamp);
 enum task_type my_task_type(void);
 
 #ifdef __cplusplus
