@@ -16,10 +16,13 @@ struct bucket {
 
 struct token_bucket {
 	struct bucket buckets[NR_BUCKET];
-	volatile uint64_t rate;
-	volatile double time_per_token;
-	uint64_t time_per_burst;
+
+	uint64_t rate;
 	uint64_t burst_size;
+
+	volatile double time_per_token;
+	volatile uint64_t time_per_burst;
+
 	int next_bucket;
 };
 
@@ -37,24 +40,29 @@ void wait_for_cache_token(int start);
 
 bool consume(struct token_bucket *tb, const uint64_t tokens, int start) __attribute__((optimize("-O3")));
 
+static inline double per_bucket_rate(uint64_t rate)
+{
+	return (double) rate / NR_BUCKET;
+}
+
 static inline void set_rate(struct token_bucket *tb, uint64_t rate)
 {
 	tb->rate = rate;
-	tb->time_per_token = (double) 1000000000 / rate;
+	tb->time_per_token = (double) 1000000000 / per_bucket_rate(rate);
 	tb->time_per_burst = (tb->burst_size / NR_BUCKET) * tb->time_per_token;
 }
 
 static inline void up_rate(struct token_bucket *tb, uint64_t rate)
 {
 	tb->rate = tb->rate + rate;
-	tb->time_per_token = (double) 1000000000 / tb->rate;
+	tb->time_per_token = (double) 1000000000 / per_bucket_rate(tb->rate);
 	tb->time_per_burst = (tb->burst_size / NR_BUCKET) * tb->time_per_token;
 }
 
 static inline void down_rate(struct token_bucket *tb, uint64_t rate)
 {
 	tb->rate = tb->rate - rate;
-	tb->time_per_token = (double) 1000000000 / tb->rate;
+	tb->time_per_token = (double) 1000000000 / per_bucket_rate(tb->rate);
 	tb->time_per_burst = (tb->burst_size / NR_BUCKET) * tb->time_per_token;
 }
 
