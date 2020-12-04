@@ -72,6 +72,7 @@ static LIST_HEAD(driver_list);
 static int shm_fd;
 static struct resource *r_table;
 struct token_bucket *global_tb;
+struct token_bucket *request_tb;
 struct resource *my_res;
 
 static int try_access_device(const struct verbs_sysfs_dev *sysfs_dev)
@@ -642,9 +643,8 @@ static int init_resource_table(void)
 
 	printf("init token bucket\n");
 	global_tb = &r_table[0].tb;
+	request_tb = &r_table[0].request_tb;
 	/* not a primiary tenant */
-	if (id)
-		init_token_bucket(&my_res->tb, 8000000, 50);
 
 	return 0;
 

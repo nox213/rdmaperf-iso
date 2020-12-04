@@ -541,6 +541,7 @@ const struct verbs_context_ops verbs_dummy_ops = {
 	rereg_mr,
 	resize_cq,
 	set_ece,
+	get_wqe_cnt,
 };
 
 /*
@@ -659,6 +660,8 @@ void verbs_set_ops(struct verbs_context *vctx,
 	SET_PRIV_OP(ctx, rereg_mr);
 	SET_PRIV_OP(ctx, resize_cq);
 	SET_PRIV_OP_IC(vctx, set_ece);
+
+	SET_OP(ctx, get_wqe_cnt);
 
 #undef SET_OP
 #undef SET_OP2

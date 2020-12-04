@@ -142,7 +142,7 @@ IBVERBS_1.10 {
 		report_bw;
 		my_task_type;
 		wait_for_token;
-		wait_for_cache_token;
+		wait_for_request_token;
 		init_token_bucket;
 } IBVERBS_1.9;
 

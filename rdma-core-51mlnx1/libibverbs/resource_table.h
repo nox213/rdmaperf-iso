@@ -44,6 +44,7 @@ struct resource {
 
 	struct qp_cache cache;
 	struct token_bucket tb;
+	struct token_bucket request_tb;
 	struct history_table ht;
 
 	struct task_stat stat;

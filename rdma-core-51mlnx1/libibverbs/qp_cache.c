@@ -9,7 +9,6 @@
 
 extern struct resource *my_res;
 
-
 static inline int cache_find(struct qp_cache *cache, uint32_t value)
 {
 	return cache->entry[value];

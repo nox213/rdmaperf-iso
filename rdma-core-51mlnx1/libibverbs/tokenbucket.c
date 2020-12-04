@@ -3,6 +3,7 @@
 
 extern struct resource *my_res;
 extern struct token_bucket *global_tb;
+extern struct token_bucket *request_tb;
 
 int init_token_bucket(struct token_bucket *tb, uint64_t rate, uint64_t burst_size)
 {
@@ -22,16 +23,34 @@ int init_token_bucket(struct token_bucket *tb, uint64_t rate, uint64_t burst_siz
 
 void wait_for_token(const uint64_t tokens, int start)
 {
-	while (!consume(global_tb, tokens, start))
-		start = (start + 1) % NR_BUCKET;
-}
+	int i, iteration;
+	uint64_t small_token, rem;
+	
+	if (tokens <= global_tb->burst_size) {
+		small_token = tokens;
+		rem = 0;
+		iteration = 1;
+	}
+	else {
+		small_token = global_tb->burst_size;
+		rem = tokens % global_tb->burst_size;
+		iteration = tokens / global_tb->burst_size;
+	}
 
-void wait_for_cache_token(int start)
-{
-	if (my_res->cache_limit) {
-		while (!consume(&my_res->tb, 1, start))
+	for (i = 0; i < iteration; i++) {
+		while (!consume(global_tb, small_token, start))
 			start = (start + 1) % NR_BUCKET;
 	}
+	if (rem) {
+		while (!consume(global_tb, rem, start))
+			start = (start + 1) % NR_BUCKET;
+	}
+}
+
+void wait_for_request_token(int start)
+{
+	while (!consume(request_tb, 1, start))
+		start = (start + 1) % NR_BUCKET;
 }
 
 bool consume(struct token_bucket *tb, const uint64_t tokens, int bucket)

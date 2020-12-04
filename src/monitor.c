@@ -19,8 +19,9 @@
 
 #define TOTAL_BW 7000000000
 #define INIT_BANDWIDTH 1000000000
-#define BURST_SIZE 4000000   // in bytes
+#define BURST_SIZE (8 * (1 << 20))   // in bytes
 
+#define INIT_REQUEST_RATE 1000000
 
 #define MONITOR_CPU 6
 #define PERF_CPU 7
@@ -33,7 +34,6 @@ struct resource *r_table;
 struct task_info t_info;
 
 /* next for qp cache */
-int *cache_usage;
 double *slack;
 enum resource_direction *r_dir;
 
@@ -94,19 +94,14 @@ int main(int argc, char *argv[])
 		t_info.nr_task++;	
 	}
 	init_token_bucket(&r_table[0].tb, INIT_BANDWIDTH, BURST_SIZE);
+	init_token_bucket(&r_table[0].request_tb, INIT_REQUEST_RATE, 64);
 
 	printf("# of tasks: %d\n", t_info.nr_task);
-	cache_usage = malloc(sizeof(int) * t_info.nr_task);
-	if (!cache_usage) {
-		fprintf(stderr, "fail to malloc\n");
-		goto unlink;
-	}
-	memset(cache_usage, 0, sizeof(int) * t_info.nr_task);
 
 	slack = malloc(sizeof(double) * t_info.nr_task);
 	if (!slack) {
 		fprintf(stderr, "fail to malloc\n");
-		goto free_usage;
+		goto unlink;
 	}
 	memset(slack, 0, sizeof(double) * t_info.nr_task);
 
@@ -128,8 +123,6 @@ free_dir:
 	free(r_dir);
 free_slack:
 	free(slack);
-free_usage:
-	free(cache_usage);
 unlink:
 	shm_unlink("resource_table");
 
@@ -259,17 +252,6 @@ void *nic_cache_monitor(void *args)
 
 	while (true) {
 		usleep(5000);
-		for (i = 0; i < t_info.nr_task; i++) {
-			if (r_table[i].type == LATENCY)
-				continue;
-
-			if (r_table[i].cache.usage >= 50) {
-			}
-
-			if (r_table[i].on) {
-				cache_flush(&r_table[i].cache);
-			}
-		}
 	}
 }
 

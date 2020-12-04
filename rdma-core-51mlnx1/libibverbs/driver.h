@@ -370,6 +370,7 @@ struct verbs_context_ops {
 			void *addr, size_t length, int access);
 	int (*resize_cq)(struct ibv_cq *cq, int cqe);
 	int (*set_ece)(struct ibv_qp *qp, struct ibv_ece *ece);
+	int (*get_wqe_cnt)(struct ibv_qp *qp);
 };
 
 static inline struct verbs_device *

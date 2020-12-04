@@ -60,6 +60,7 @@
 
 extern struct resource *my_res;
 extern struct token_bucket *global_tb;
+extern struct token_bucket *request_tb;
 
 int __attribute__((const)) ibv_rate_to_mult(enum ibv_rate rate)
 {
@@ -621,7 +622,7 @@ LATEST_SYMVER_FUNC(ibv_create_qp, 1_1, "IBVERBS_1.1",
 
 		/*alloc token bucket */
 		qp->bucket_index = get_base_bucket(global_tb);
-		qp->local_bucket_index = get_base_bucket(&my_res->tb);
+		qp->local_bucket_index = get_base_bucket(request_tb);
 	}
 
 	return qp;

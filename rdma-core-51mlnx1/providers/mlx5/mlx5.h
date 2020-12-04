@@ -956,6 +956,7 @@ void mlx5_init_qp_indices(struct mlx5_qp *qp);
 void mlx5_init_rwq_indices(struct mlx5_rwq *rwq);
 int mlx5_post_send(struct ibv_qp *ibqp, struct ibv_send_wr *wr,
 			  struct ibv_send_wr **bad_wr);
+int mlx5_get_wqe_cnt(struct ibv_qp *ibqp);
 int mlx5_post_recv(struct ibv_qp *ibqp, struct ibv_recv_wr *wr,
 			  struct ibv_recv_wr **bad_wr);
 int mlx5_post_wq_recv(struct ibv_wq *ibwq, struct ibv_recv_wr *wr,

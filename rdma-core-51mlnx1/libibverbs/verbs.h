@@ -1954,6 +1954,8 @@ struct ibv_context_ops {
 	void *(*_compat_attach_mcast)(void);
 	void *(*_compat_detach_mcast)(void);
 	void *(*_compat_async_event)(void);
+
+	int (*get_wqe_cnt)(struct ibv_qp *qp);
 };
 
 struct ibv_context {
@@ -3194,6 +3196,15 @@ static inline int ibv_destroy_rwq_ind_table(struct ibv_rwq_ind_table *rwq_ind_ta
 }
 
 /**
+ *  get wqe cnt
+ */
+static inline int get_wqe_cnt(struct ibv_qp *qp)
+
+{
+	return qp->context->ops.get_wqe_cnt(qp);
+}
+
+/**
  * ibv_post_send - Post a list of work requests to a send queue.
  *
  * If IBV_SEND_INLINE flag is set, the data buffers can be reused
@@ -3206,7 +3217,6 @@ static inline int ibv_post_send(struct ibv_qp *qp, struct ibv_send_wr *wr,
 	if (my_task_type() == SECONDARY) {
 		uint64_t size = 0;
 		struct ibv_send_wr *cur = wr;
-		cache_find_or_insert(qp->handle);
 		/* TODO: get total packet size by iterating wr list */
 		while (cur) {
 			for (int i = 0; i < cur->num_sge; i++)
@@ -3215,7 +3225,8 @@ static inline int ibv_post_send(struct ibv_qp *qp, struct ibv_send_wr *wr,
 
 		}
 		/*check token bucket */
-		wait_for_cache_token(qp->local_bucket_index);
+		if (size < 128)
+			wait_for_request_token(qp->local_bucket_index);
 		wait_for_token(size, qp->bucket_index);
 	}
 
@@ -3314,6 +3325,7 @@ const char *ibv_port_state_str(enum ibv_port_state port_state);
  * ibv_event_type_str - Return string describing event_type enum value
  */
 const char *ibv_event_type_str(enum ibv_event_type event);
+
 
 #define ETHERNET_LL_SIZE 6
 int ibv_resolve_eth_l2_from_gid(struct ibv_context *context,

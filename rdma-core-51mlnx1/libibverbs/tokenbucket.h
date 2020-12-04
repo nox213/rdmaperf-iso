@@ -2,7 +2,7 @@
 
 #define __TOKEN__H
 
-#define NR_BUCKET 10
+#define NR_BUCKET 16
 
 #include <time.h>
 #include <stdio.h>
@@ -32,7 +32,7 @@ extern "C" {
 
 int init_token_bucket(struct token_bucket *tb, uint64_t rate, uint64_t burst_size);
 void wait_for_token(const uint64_t tokens, int start);
-void wait_for_cache_token(int start);
+void wait_for_request_token(int start);
 
 #ifdef __cplusplus
 }
