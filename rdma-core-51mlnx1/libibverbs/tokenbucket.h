@@ -21,7 +21,7 @@ struct token_bucket {
 	uint64_t burst_size;
 
 	volatile double time_per_token;
-	volatile uint64_t time_per_burst;
+	volatile double time_per_burst;
 
 	int next_bucket;
 };
@@ -49,21 +49,21 @@ static inline void set_rate(struct token_bucket *tb, uint64_t rate)
 {
 	tb->rate = rate;
 	tb->time_per_token = (double) 1000000000 / per_bucket_rate(rate);
-	tb->time_per_burst = (tb->burst_size / NR_BUCKET) * tb->time_per_token;
+	tb->time_per_burst = ((double) tb->burst_size / NR_BUCKET) * tb->time_per_token;
 }
 
 static inline void up_rate(struct token_bucket *tb, uint64_t rate)
 {
 	tb->rate = tb->rate + rate;
 	tb->time_per_token = (double) 1000000000 / per_bucket_rate(tb->rate);
-	tb->time_per_burst = (tb->burst_size / NR_BUCKET) * tb->time_per_token;
+	tb->time_per_burst = ((double) tb->burst_size / NR_BUCKET) * tb->time_per_token;
 }
 
 static inline void down_rate(struct token_bucket *tb, uint64_t rate)
 {
 	tb->rate = tb->rate - rate;
 	tb->time_per_token = (double) 1000000000 / per_bucket_rate(tb->rate);
-	tb->time_per_burst = (tb->burst_size / NR_BUCKET) * tb->time_per_token;
+	tb->time_per_burst = ((double) tb->burst_size / NR_BUCKET) * tb->time_per_token;
 }
 
 static inline int get_base_bucket(struct token_bucket *tb)

@@ -11,7 +11,7 @@ int init_token_bucket(struct token_bucket *tb, uint64_t rate, uint64_t burst_siz
 
 	tb->rate = rate;
 	tb->time_per_token = (double) 1000000000 / ((double) rate / NR_BUCKET);
-	tb->time_per_burst = (burst_size / NR_BUCKET) * tb->time_per_token;
+	tb->time_per_burst = ((double) burst_size / NR_BUCKET) * tb->time_per_token;
 	tb->burst_size = burst_size;
 	tb->next_bucket = -1;
 
@@ -24,17 +24,18 @@ int init_token_bucket(struct token_bucket *tb, uint64_t rate, uint64_t burst_siz
 void wait_for_token(const uint64_t tokens, int start)
 {
 	int i, iteration;
-	uint64_t small_token, rem;
+	uint64_t small_token, rem, small_burst_size;
 	
-	if (tokens <= global_tb->burst_size) {
+	small_burst_size = (double) global_tb->burst_size / NR_BUCKET;
+	if (tokens <= small_burst_size) {
 		small_token = tokens;
 		rem = 0;
 		iteration = 1;
 	}
 	else {
-		small_token = global_tb->burst_size;
-		rem = tokens % global_tb->burst_size;
-		iteration = tokens / global_tb->burst_size;
+		small_token = small_burst_size;
+		rem = tokens % small_burst_size;
+		iteration = tokens / small_burst_size;
 	}
 
 	for (i = 0; i < iteration; i++) {

@@ -3225,8 +3225,8 @@ static inline int ibv_post_send(struct ibv_qp *qp, struct ibv_send_wr *wr,
 
 		}
 		/*check token bucket */
-		if (size < 128)
-			wait_for_request_token(qp->local_bucket_index);
+//		if (size < 128)
+		wait_for_request_token(qp->local_bucket_index);
 		wait_for_token(size, qp->bucket_index);
 	}
 

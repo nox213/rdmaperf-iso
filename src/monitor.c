@@ -21,7 +21,7 @@
 #define INIT_BANDWIDTH 1000000000
 #define BURST_SIZE (8 * (1 << 20))   // in bytes
 
-#define INIT_REQUEST_RATE 1000000
+#define INIT_REQUEST_RATE 4000000
 
 #define MONITOR_CPU 6
 #define PERF_CPU 7
@@ -259,7 +259,7 @@ void *network_monitor(void *args)
 {
 	int ret, i;
 	const int interval = 5;
-	const double buffer = 0.3;
+	const double buffer = 0.25;
 	uint64_t bw_usage, be_bw;
 
 	cpu_set_t   cpuset;
