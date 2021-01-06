@@ -1,3 +1,2 @@
-0 keyval-bench latency 120
+0 keyval-bench latency 105
 1 microbench secondary 0
-2 microbench_b secondary 0

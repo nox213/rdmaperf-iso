@@ -17,11 +17,12 @@
 
 #define INTERVAL 100000UL
 
-#define TOTAL_BW 7000000000
+#define TOTAL_BW 6200000000
 #define INIT_BANDWIDTH 1000000000
 #define BURST_SIZE (8 * (1 << 20))   // in bytes
 
-#define INIT_REQUEST_RATE 4000000
+#define INIT_REQUEST_RATE 3000000
+#define REQUEST_BUCKET_SIZE 64
 
 #define MONITOR_CPU 6
 #define PERF_CPU 7
@@ -94,7 +95,9 @@ int main(int argc, char *argv[])
 		t_info.nr_task++;	
 	}
 	init_token_bucket(&r_table[0].tb, INIT_BANDWIDTH, BURST_SIZE);
-	init_token_bucket(&r_table[0].request_tb, INIT_REQUEST_RATE, 64);
+	for (i = 1; i < t_info.nr_task; i++)
+		init_token_bucket(&r_table[i].request_tb, 
+				INIT_REQUEST_RATE/ (t_info.nr_task - 1), REQUEST_BUCKET_SIZE / (t_info.nr_task - 1));
 
 	printf("# of tasks: %d\n", t_info.nr_task);
 
@@ -259,7 +262,7 @@ void *network_monitor(void *args)
 {
 	int ret, i;
 	const int interval = 5;
-	const double buffer = 0.25;
+	const double buffer = 0.10;
 	uint64_t bw_usage, be_bw;
 
 	cpu_set_t   cpuset;

@@ -622,7 +622,7 @@ LATEST_SYMVER_FUNC(ibv_create_qp, 1_1, "IBVERBS_1.1",
 
 		/*alloc token bucket */
 		qp->bucket_index = get_base_bucket(global_tb);
-		qp->local_bucket_index = get_base_bucket(request_tb);
+		qp->local_bucket_index = get_base_bucket(&my_res->request_tb);
 	}
 
 	return qp;

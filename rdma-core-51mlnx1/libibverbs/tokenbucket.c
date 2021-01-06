@@ -50,7 +50,7 @@ void wait_for_token(const uint64_t tokens, int start)
 
 void wait_for_request_token(int start)
 {
-	while (!consume(request_tb, 1, start))
+	while (!consume(&my_res->request_tb, 1, start))
 		start = (start + 1) % NR_BUCKET;
 }
 

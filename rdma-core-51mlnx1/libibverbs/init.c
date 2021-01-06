@@ -638,13 +638,8 @@ static int init_resource_table(void)
 	}
 	my_res = &r_table[id];
 
-	printf("init qp cache\n");
-	init_qp_cache(&my_res->cache);
-
 	printf("init token bucket\n");
 	global_tb = &r_table[0].tb;
-	request_tb = &r_table[0].request_tb;
-	/* not a primiary tenant */
 
 	return 0;
 
